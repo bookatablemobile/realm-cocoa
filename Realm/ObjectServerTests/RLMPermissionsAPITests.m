@@ -97,7 +97,6 @@ static NSURL *makeTestURL(NSString *name, RLMSyncUser *owner) {
 }
 
 static NSURL *makeTestGlobalURL(NSString *name) {
-    NSAssert([name length] > 0, @"Test error: cannot leave name empty.");
     return [[NSURL alloc] initWithString:[NSString stringWithFormat:@"realm://localhost:9080/%@", name]];
 }
 
