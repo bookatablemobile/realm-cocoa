@@ -69,6 +69,13 @@ PermissionGetCallback RLMWrapPermissionResultsCallback(RLMPermissionResultsBlock
     };
 }
 
+void runBlockForUserContext(const std::shared_ptr<SyncUser>& user, std::function<void(CocoaSyncUserContext&)> block) {
+    user->set_binding_context<CocoaSyncUserContext>();
+    user->run_block_with_context<CocoaSyncUserContext>([block=std::move(block)](auto& context) {
+        block(context);
+    });
+}
+
 }
 
 void CocoaSyncUserContext::register_refresh_handle(const std::string& path, RLMSyncSessionRefreshHandle *handle)
@@ -197,7 +204,9 @@ PermissionChangeCallback RLMWrapPermissionStatusCallback(RLMPermissionStatusBloc
         return;
     }
     _user->log_out();
-    [self _context]->invalidate_all_handles();
+    runBlockForUserContext(_user, [](auto& context) {
+        context.invalidate_all_handles();
+    });
 }
 
 - (nullable RLMSyncSession *)sessionForURL:(NSURL *)url {
@@ -313,16 +322,6 @@ PermissionChangeCallback RLMWrapPermissionStatusCallback(RLMPermissionStatusBloc
 
 #pragma mark - Private API
 
-- (CocoaSyncUserContext *)_context {
-    if (!_user) {
-        return nullptr;
-    }
-    if (!_user->context) {
-        _user->context = std::make_unique<CocoaSyncUserContext>();
-    }
-    return static_cast<CocoaSyncUserContext *>(&*_user->context);
-}
-
 - (NSString *)_refreshToken {
     if (!_user) {
         return nil;
@@ -341,9 +340,9 @@ PermissionChangeCallback RLMWrapPermissionStatusCallback(RLMPermissionStatusBloc
                                                                                            user:self
                                                                                         session:std::move(session)
                                                                                 completionBlock:completion];
-    if (auto context = [self _context]) {
-        context->register_refresh_handle([path UTF8String], handle);
-    }
+    runBlockForUserContext(_user, [handle=handle, path=[path UTF8String]](auto& context) {
+        context.register_refresh_handle(path, handle);
+    });
 }
 
 - (std::shared_ptr<SyncUser>)_syncUser {

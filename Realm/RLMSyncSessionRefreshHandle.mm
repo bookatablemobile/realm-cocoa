@@ -31,11 +31,13 @@
 using namespace realm;
 
 namespace {
-void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
+void runBlockForUserContext(const std::weak_ptr<SyncUser>& user,
                                 const std::string& path,
                                 std::function<void(CocoaSyncUserContext&, const std::string&)> block) {
     if (auto strong_user = user.lock()) {
-        block(static_cast<CocoaSyncUserContext&>(*strong_user->context), path);
+        strong_user->run_block_with_context<CocoaSyncUserContext>([block=std::move(block), path](auto& context) {
+            block(context, path);
+        });
     }
 }
 }
@@ -110,7 +112,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
         NSDate *fireDate = [RLMSyncSessionRefreshHandle fireDateForTokenExpirationDate:dateWhenTokenExpires
                                                                                nowDate:[NSDate date]];
         if (!fireDate) {
-            executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+            runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
                 context.unregister_refresh_handle(path);
             });
             return;
@@ -131,7 +133,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
     std::shared_ptr<SyncSession> session = _session.lock();
     if (!session) {
         // The session is dead or in a fatal error state.
-        executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+        runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
             context.unregister_refresh_handle(path);
         });
         [self invalidate];
@@ -161,7 +163,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
             [self scheduleRefreshTimer:expires];
         } else {
             // The session is dead or in a fatal error state.
-            executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+            runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
                 context.unregister_refresh_handle(path);
             });
             [self invalidate];
@@ -206,7 +208,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
     }
     if (!nextTryDate) {
         // This error isn't a network failure error. Just invalidate the refresh handle and stop.
-        executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+        runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
             context.unregister_refresh_handle(path);
         });
         [self invalidate];
@@ -230,7 +232,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
             return [self _handleSuccessfulRequest:model];
         }
         // Otherwise, malformed JSON
-        executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+        runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
             context.unregister_refresh_handle(path);
         });
         [self.timer invalidate];
@@ -251,7 +253,7 @@ void executeBlockForUserContext(const std::weak_ptr<SyncUser>& user,
         refreshToken = @(user->refresh_token().c_str());
     }
     if (!refreshToken) {
-        executeBlockForUserContext(_user, _path, [](auto& context, auto& path) {
+        runBlockForUserContext(_user, _path, [](auto& context, auto& path) {
             context.unregister_refresh_handle(path);
         });
         [self.timer invalidate];
