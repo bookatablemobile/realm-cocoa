@@ -35,8 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 class CocoaSyncUserContext : public SyncUserContext {
 public:
-    CocoaSyncUserContext() = default;
-
     void register_refresh_handle(const std::string& path, RLMSyncSessionRefreshHandle *handle);
     void unregister_refresh_handle(const std::string& path);
     void invalidate_all_handles();
